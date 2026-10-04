@@ -1,0 +1,37 @@
+{
+  "name": "mobilidade-urbana",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Mobilidade Urbana — Sprint 1: API Node.js (HTTPS, bcrypt) + app React Native (Expo — Android nativo, Expo Go e web) com linhas, paradas, mapa, favoritos e dashboard",
+  "engines": {
+    "node": ">=20.19"
+  },
+  "scripts": {
+    "start": "node scripts/start.mjs",
+    "setup": "node scripts/setup.mjs",
+    "db:up": "node scripts/db.mjs up",
+    "db:down": "node scripts/db.mjs down",
+    "db:reset": "node scripts/db.mjs reset",
+    "seed": "npm --prefix backend run seed",
+    "certs": "npm --prefix backend run certs",
+    "dev": "node scripts/dev.mjs",
+    "dev:api": "npm --prefix backend run dev",
+    "dev:app": "npm --prefix mobile run start",
+    "web": "npm --prefix mobile run web",
+    "android": "node scripts/android.mjs tudo",
+    "android:apk": "node scripts/android.mjs apk",
+    "android:emulador": "node scripts/android.mjs emulador",
+    "android:instalar": "node scripts/android.mjs instalar",
+    "dev:android": "node scripts/dev.mjs --android",
+    "test": "npm --prefix backend test && npm --prefix mobile test",
+    "test:backend": "npm --prefix backend test",
+    "test:mobile": "npm --prefix mobile test",
+    "test:e2e": "npm --prefix e2e test",
+    "video": "npm --prefix e2e run video",
+    "lint": "npm --prefix backend run lint && npm --prefix mobile run lint",
+    "typecheck": "npm --prefix backend run typecheck && npm --prefix mobile run typecheck",
+    "build": "npm --prefix backend run build && npm --prefix mobile run export:web",
+    "check": "npm run lint && npm run typecheck && npm test",
+    "verify": "node scripts/verify.mjs"
+  }
+}

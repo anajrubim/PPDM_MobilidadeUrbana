@@ -1,0 +1,5 @@
+# Mesmos finais de linha no Windows e no Linux (os .bat precisam de CRLF)
+* text=auto eol=lf
+*.bat text eol=crlf
+*.png binary
+*.mp4 binary

@@ -1,0 +1,25 @@
+node_modules/
+dist/
+coverage/
+.env
+*.log
+.DS_Store
+# certificado HTTPS de desenvolvimento (gerado por npm run certs)
+backend/certs/
+# Expo
+mobile/.expo/
+mobile/dist/
+mobile/expo-env.d.ts
+# Playwright
+e2e/report/
+e2e/test-results/
+e2e/video/out/
+# vídeo de demonstração (arquivo grande, fica fora do Git)
+video/
+verificacao.log
+# PDFs gerados a partir de docs/*.md (vão no .zip de entrega)
+/GUIA-DO-PROJETO.pdf
+/ROTEIRO-APRESENTACAO.pdf
+# APK compilado (npm run android:apk) e saída da API em segundo plano
+/apk/
+api-android.log

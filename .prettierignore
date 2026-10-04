@@ -1,0 +1,6 @@
+**/node_modules
+**/dist
+**/coverage
+mobile/src/components/map/leaflet-assets.ts
+e2e/report
+e2e/test-results

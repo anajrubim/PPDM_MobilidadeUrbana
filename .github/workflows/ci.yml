@@ -1,0 +1,188 @@
+# US14 — pipeline de build e deploy.
+# Todo push/PR: lint, tipos, testes (API com PostgreSQL real + app), build da API e do app web, testes E2E.
+# Push na main ou tag v*: publica a imagem Docker da API no GitHub Container Registry e o app web como artefato;
+# se os segredos do servidor existirem, faz o deploy por SSH.
+name: CI/CD
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  NODE_VERSION: '22'
+
+jobs:
+  backend:
+    name: API — lint, tipos, testes e build
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: dmr
+          POSTGRES_PASSWORD: dmr
+          POSTGRES_DB: dmr_test
+        ports: ['5434:5432']
+        options: >-
+          --health-cmd "pg_isready -U dmr -d dmr_test" --health-interval 2s --health-timeout 3s --health-retries 30
+    defaults:
+      run:
+        working-directory: backend
+    env:
+      TEST_DATABASE_URL: postgres://dmr:dmr@localhost:5434/dmr_test
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run typecheck
+      - run: npm run test:coverage
+      - run: npm run build
+      - uses: actions/upload-artifact@v4
+        with:
+          name: api-dist
+          path: backend/dist
+          retention-days: 7
+
+  mobile:
+    name: App — lint, tipos, testes e build web
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: mobile
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: mobile/package-lock.json
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run typecheck
+      - run: npm test -- --coverage
+      - run: npm run export:web
+        env:
+          EXPO_OFFLINE: '1'
+      - uses: actions/upload-artifact@v4
+        with:
+          name: app-web
+          path: mobile/dist
+          retention-days: 7
+
+  e2e:
+    name: Ponta a ponta (Playwright)
+    needs: [backend, mobile]
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: dmr
+          POSTGRES_PASSWORD: dmr
+          POSTGRES_DB: dmr
+        ports: ['5434:5432']
+        options: >-
+          --health-cmd "pg_isready -U dmr -d dmr" --health-interval 2s --health-timeout 3s --health-retries 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+      - name: Dependências
+        run: |
+          npm ci --prefix backend
+          npm ci --prefix mobile
+          npm ci --prefix e2e
+          npx --prefix e2e playwright install --with-deps chromium
+      - name: Banco, certificado e dados de demonstração
+        run: |
+          cp backend/.env.example backend/.env
+          npm --prefix backend run certs
+          npm --prefix backend run seed
+      - name: Sobe a API e o app web
+        run: |
+          (cd backend && npm run dev > ../api.log 2>&1 &)
+          (cd mobile && EXPO_OFFLINE=1 npx expo start --web --port 8081 > ../app.log 2>&1 &)
+          npx --yes wait-on@8 -t 180000 http://localhost:3333/api/v1/health http://localhost:8081
+          curl -s http://localhost:8081 > /dev/null
+      - name: Testes E2E
+        working-directory: e2e
+        run: npx playwright test
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: e2e-relatorio
+          path: |
+            e2e/report
+            e2e/test-results
+            api.log
+            app.log
+          retention-days: 7
+
+  publish:
+    name: Publica imagem da API (GHCR)
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v'))
+    needs: [backend, mobile, e2e]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      image: ${{ steps.meta.outputs.image }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: meta
+        run: echo "image=ghcr.io/$(echo '${{ github.repository }}' | tr '[:upper:]' '[:lower:]')/api" >> "$GITHUB_OUTPUT"
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: docker/build-push-action@v6
+        with:
+          context: backend
+          push: true
+          build-args: APP_VERSION=${{ github.ref_name }}-${{ github.sha }}
+          tags: |
+            ${{ steps.meta.outputs.image }}:${{ github.sha }}
+            ${{ steps.meta.outputs.image }}:${{ github.ref_type == 'tag' && github.ref_name || 'main' }}
+
+  deploy:
+    name: Deploy no servidor
+    needs: publish
+    runs-on: ubuntu-latest
+    environment: producao
+    env:
+      HAS_SERVER: ${{ secrets.DEPLOY_HOST != '' }}
+    steps:
+      - name: Sem servidor configurado
+        if: env.HAS_SERVER != 'true'
+        run: echo "Defina os segredos DEPLOY_HOST, DEPLOY_USER e DEPLOY_SSH_KEY para o deploy automático. Imagem publicada em ${{ needs.publish.outputs.image }}."
+      - name: Atualiza a API por SSH
+        if: env.HAS_SERVER == 'true'
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: ${{ secrets.DEPLOY_USER }}
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          script: |
+            cd ~/mobilidade-urbana
+            export API_IMAGE=${{ needs.publish.outputs.image }}:${{ github.sha }}
+            docker compose --profile prod pull api
+            docker compose --profile prod up -d
+            sleep 5 && curl -fsS http://localhost/api/v1/health
