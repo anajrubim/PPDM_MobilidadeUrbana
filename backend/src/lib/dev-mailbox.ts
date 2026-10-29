@@ -1,7 +1,25 @@
-import { Router } from 'express';
+import { Router, type Request } from 'express';
 import type { SentMail } from './mailer.js';
 
 export const isLoopback = (addr?: string) => !!addr && /^(127\.|::1$|::ffff:127\.)/.test(addr);
+
+/**
+ * Ferramentas de desenvolvimento: só para quem está no próprio computador, sem proxy no meio
+ * (atrás de um Nginx local todo mundo pareceria "127.0.0.1") e sem pedidos vindos de outro site (CSRF).
+ */
+export function isLocalDevRequest(req: Request): boolean {
+  if (!isLoopback(req.socket.remoteAddress)) return false;
+  if (req.headers['x-forwarded-for'] || req.headers.forwarded) return false;
+  const host = (req.headers.host ?? '').replace(/:\d+$/, '').replace(/^\[|\]$/g, '');
+  if (!['localhost', '127.0.0.1', '::1'].includes(host)) return false;
+  if (req.method !== 'GET' && req.method !== 'HEAD') {
+    const site = req.headers['sec-fetch-site'];
+    if (site && site !== 'same-origin' && site !== 'none') return false;
+    const origin = req.headers.origin;
+    if (origin && !/^https?:\/\/(localhost|127\.0\.0\.1|\[::1\])(:\d+)?$/.test(origin)) return false;
+  }
+  return true;
+}
 
 const esc = (s: string) => s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!);
 
@@ -17,7 +35,7 @@ export function devMailboxRoutes(outbox: SentMail[]): Router {
   // Os e-mails trazem links de redefinição de senha: só quem está no próprio computador pode ver
   // (em desenvolvimento a API escuta na rede para o celular conseguir acessar).
   r.use(['/dev/emails', '/api/v1/dev/emails'], (req, res, next) => {
-    if (isLoopback(req.socket.remoteAddress)) return next();
+    if (isLocalDevRequest(req)) return next();
     res.status(403).json({ error: { code: 'forbidden', message: 'A caixa de e-mails de desenvolvimento só abre no próprio computador' } });
   });
   r.get('/api/v1/dev/emails', (_req, res) => {

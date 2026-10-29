@@ -4,8 +4,12 @@ import type { Deps } from '../../app.js';
 import { notFound } from '../../lib/errors.js';
 import { haversine, polylineLength, type LatLng } from '../../lib/geo.js';
 import { idParam, parse } from '../../lib/http.js';
+import { ratingSummaries, type RatingSummary } from '../community/ratings.js';
+import { alertDto } from '../realtime/service-alerts.js';
+import type { Services } from '../realtime/services.js';
+import { clockFor, predictedArrivals, vehiclesOfLine } from '../realtime/simulation.js';
 import type { NetLine, Network, NetworkCache } from './network.js';
-import { isOperating, minutesOfDay, nextArrivalsAtStop, timetableAtStop } from './schedule.js';
+import { isOperating, timetableAtStop } from './schedule.js';
 
 const serviceTypeSchema = z.enum(['normal', 'executivo', 'noturno', 'expresso']);
 
@@ -17,7 +21,9 @@ export const normalize = (s: string) =>
     .toLowerCase()
     .trim();
 
-export function lineSummary(line: NetLine, favorites: Set<number>) {
+const NO_RATING: RatingSummary = { average: null, count: 0 };
+
+export function lineSummary(line: NetLine, favorites: Set<number>, ratings?: Map<number, RatingSummary>) {
   return {
     id: line.id,
     code: line.code,
@@ -34,6 +40,8 @@ export function lineSummary(line: NetLine, favorites: Set<number>) {
     stopsCount: line.stops.length,
     operating: isOperating(line),
     isFavorite: favorites.has(line.id),
+    // US22 — média das avaliações
+    rating: ratings?.get(line.id) ?? NO_RATING,
   };
 }
 
@@ -53,7 +61,7 @@ export function lineShape(net: Network, line: NetLine): LatLng[] {
 }
 
 /** Rotas públicas (com usuário opcional para marcar favoritos): linhas e paradas. */
-export function transitRoutes(deps: Deps, cache: NetworkCache): Router {
+export function transitRoutes(deps: Deps, cache: NetworkCache, services: Services): Router {
   const { clock } = deps;
   const r = Router();
 
@@ -68,7 +76,7 @@ export function transitRoutes(deps: Deps, cache: NetworkCache): Router {
       req.query,
     );
     const net = await cache.get();
-    const favs = await favoriteIds(deps, req.user?.id);
+    const [favs, ratings] = await Promise.all([favoriteIds(deps, req.user?.id), ratingSummaries(deps.db)]);
     const term = q.q ? normalize(q.q) : '';
     let lines = net.lines.filter(
       (l) =>
@@ -78,7 +86,7 @@ export function transitRoutes(deps: Deps, cache: NetworkCache): Router {
     );
     const rank = (l: NetLine) => (!term ? 0 : normalize(l.code) === term ? 0 : normalize(l.code).startsWith(term) ? 1 : 2);
     lines = [...lines].sort((a, b) => rank(a) - rank(b) || a.code.localeCompare(b.code, 'pt-BR', { numeric: true }));
-    res.json({ data: lines.map((l) => lineSummary(l, favs)) });
+    res.json({ data: lines.map((l) => lineSummary(l, favs, ratings)) });
   });
 
   // US07/US08 — detalhe da linha: trajeto para o mapa e paradas com o próximo horário
@@ -86,12 +94,18 @@ export function transitRoutes(deps: Deps, cache: NetworkCache): Router {
     const net = await cache.get();
     const line = net.lineById.get(parse(idParam, req.params.id));
     if (!line) throw notFound('Linha');
-    const favs = await favoriteIds(deps, req.user?.id);
-    const nowMin = minutesOfDay(clock());
+    const now = clock();
+    const c = clockFor(now);
+    const [favs, ratings, upcoming, extra] = await Promise.all([
+      favoriteIds(deps, req.user?.id),
+      ratingSummaries(deps.db),
+      services.alerts.upcoming(now),
+      services.alerts.extraDelay(now),
+    ]);
     const shape = lineShape(net, line);
     const stops = line.stops.map((ls) => {
       const s = net.stops.get(ls.stopId)!;
-      const next = isOperating(line) ? nextArrivalsAtStop(line, s.id, nowMin, 1)[0] : undefined;
+      const next = isOperating(line) ? predictedArrivals(line, s.id, c, 1, extra)[0] : undefined;
       return {
         id: s.id,
         code: s.code,
@@ -106,11 +120,14 @@ export function transitRoutes(deps: Deps, cache: NetworkCache): Router {
     });
     res.json({
       data: {
-        ...lineSummary(line, favs),
+        ...lineSummary(line, favs, ratings),
         shape,
         lengthM: Math.round(polylineLength(shape)),
         durationMin: line.stops.at(-1)?.offsetMin ?? 0,
         stops,
+        // US16/US17 — ônibus em circulação agora e avisos (desvio, atraso anunciado)
+        vehiclesCount: vehiclesOfLine(net, line, c, extra).length,
+        alerts: upcoming.filter((a) => a.lineId === line.id).map((a) => alertDto(a, now)),
       },
     });
   });
@@ -152,7 +169,9 @@ export function transitRoutes(deps: Deps, cache: NetworkCache): Router {
     const net = await cache.get();
     const s = net.stops.get(parse(idParam, req.params.id));
     if (!s) throw notFound('Ponto de parada');
-    const nowMin = minutesOfDay(clock());
+    const now = clock();
+    const c = clockFor(now);
+    const [extra, active] = await Promise.all([services.alerts.extraDelay(now), services.alerts.active(now)]);
     const lines = (net.linesByStop.get(s.id) ?? [])
       .filter((l) => l.status === 'active')
       .map((l) => ({
@@ -164,11 +183,54 @@ export function transitRoutes(deps: Deps, cache: NetworkCache): Router {
         firstDeparture: l.firstDeparture,
         lastDeparture: l.lastDeparture,
         headwayMin: l.headwayMin,
-        arrivals: nextArrivalsAtStop(l, s.id, nowMin, 3),
+        // US09 + US16 — próximas passagens com o atraso previsto
+        arrivals: predictedArrivals(l, s.id, c, 3, extra),
         timetable: timetableAtStop(l, s.id),
+        // US27 — o app calcula as próximas passagens sozinho (offline) com estes dados
+        offsets: l.stops.filter((ls) => ls.stopId === s.id).map((ls) => ls.offsetMin),
+        alerts: active.filter((a) => a.lineId === l.id).map((a) => alertDto(a, now)),
       }))
       .sort((a, b) => (a.arrivals[0]?.inMin ?? 9999) - (b.arrivals[0]?.inMin ?? 9999));
     res.json({ data: { id: s.id, code: s.code, name: s.name, lat: s.lat, lng: s.lng, lines } });
+  });
+
+  // US16 — ônibus da linha em circulação agora (posição simulada) e, com `stopId`, a chegada de cada um ao ponto
+  r.get('/lines/:id/vehicles', async (req, res) => {
+    const net = await cache.get();
+    const line = net.lineById.get(parse(idParam, req.params.id));
+    if (!line) throw notFound('Linha');
+    const q = parse(z.object({ stopId: idParam.optional() }), req.query);
+    const now = clock();
+    const c = clockFor(now);
+    const [extra, active] = await Promise.all([services.alerts.extraDelay(now), services.alerts.active(now)]);
+    const vehicles = vehiclesOfLine(net, line, c, extra);
+    let stop = null;
+    if (q.stopId != null) {
+      const st = net.stops.get(q.stopId);
+      const idx = line.stops.findIndex((ls) => ls.stopId === q.stopId);
+      if (!st || idx < 0) throw notFound('Ponto de parada desta linha');
+      stop = { id: st.id, name: st.name, lat: st.lat, lng: st.lng, arrivals: predictedArrivals(line, st.id, c, 3, extra) };
+    }
+    res.set('Cache-Control', 'no-store').json({
+      data: {
+        line: { id: line.id, code: line.code, name: line.name, color: line.color },
+        updatedAt: now.toISOString(),
+        vehicles,
+        stop,
+        alerts: active.filter((a) => a.lineId === line.id).map((a) => alertDto(a, now)),
+      },
+    });
+  });
+
+  // US17 — avisos de serviço (atraso anunciado, desvio, suspensão) ativos ou programados
+  r.get('/service-alerts', async (req, res) => {
+    const now = clock();
+    const net = await cache.get();
+    const list = (await services.alerts.upcoming(now)).flatMap((a) => {
+      const line = net.lineById.get(a.lineId);
+      return line ? [{ ...alertDto(a, now), line: { id: line.id, code: line.code, name: line.name, color: line.color } }] : [];
+    });
+    res.json({ data: list });
   });
 
   return r;

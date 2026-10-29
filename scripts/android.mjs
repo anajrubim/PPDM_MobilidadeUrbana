@@ -20,7 +20,7 @@ import { capture, fail, isWin, ok, ROOT, run, sleep, step, warn } from './lib.mj
 
 const MOBILE = path.join(ROOT, 'mobile');
 const PACKAGE = 'app.mobilidade.urbana';
-const APK_OUT = path.join(ROOT, 'apk', 'mobilidade-urbana-sprint01.apk');
+const APK_OUT = path.join(ROOT, 'apk', 'mobilidade-urbana-sprint02.apk');
 const args = process.argv.slice(2);
 const opt = (name) => args.find((a) => a.startsWith(`--${name}=`))?.split('=').slice(1).join('=');
 
@@ -194,12 +194,12 @@ async function installAndOpen() {
   ok(`app aberto em ${list.join(', ')} — conta de demonstração: marina@email.com / Senha@123`);
 }
 
-/** 'ok' = a API da Sprint 1 responde · 'outra' = outro programa está na porta 3333 · null = nada */
+/** 'ok' = a API da Sprint 2 responde · 'outra' = outro programa está na porta 3333 · null = nada */
 const apiState = async () => {
   try {
     const res = await fetch('http://localhost:3333/api/v1/health', { signal: AbortSignal.timeout(2000) });
     const body = await res.json().catch(() => null);
-    return body?.data?.app === 'mobilidade-urbana-sprint-01' ? 'ok' : 'outra';
+    return body?.data?.app === 'mobilidade-urbana-sprint-02' ? 'ok' : 'outra';
   } catch {
     return null;
   }
@@ -213,7 +213,7 @@ async function ensureApi() {
   if (state === 'ok') return ok('API já está rodando em http://localhost:3333');
   if (state === 'outra') {
     fail(
-      'A porta 3333 está ocupada por outro programa (não é a API desta Sprint 1). Feche-o e rode de novo.' +
+      'A porta 3333 está ocupada por outro programa (não é a API desta Sprint 2). Feche-o e rode de novo.' +
         (isWin ? '\n  Para descobrir quem usa: netstat -ano | findstr :3333' : '\n  Para descobrir quem usa: lsof -i :3333'),
     );
   }

@@ -9,6 +9,7 @@ import { loadNetwork } from '../modules/transit/network.js';
 import { seedNetwork } from './demo-data.js';
 import { runMigrations } from './migrator.js';
 import { createPool } from './pool.js';
+import { seedSprint2 } from './demo-sprint2.js';
 
 const config = loadConfig();
 // A conta de demonstração tem senha conhecida: nunca rodar contra produção por acidente
@@ -52,14 +53,42 @@ if (!found.rows[0]) {
     const seg = tripSegment(net, line.id, line.stops[from]!.stopId, line.stops[to]!.stopId);
     await db.query(
       `INSERT INTO trips (user_id, line_id, line_code, origin_stop_id, dest_stop_id, origin_label, dest_label,
-                          duration_min, distance_m, created_at)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9,
+                          duration_min, distance_m, legs, created_at, completed_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $12,
+               ((now() AT TIME ZONE 'America/Sao_Paulo')::date - $10::int + $11::time) AT TIME ZONE 'America/Sao_Paulo',
                ((now() AT TIME ZONE 'America/Sao_Paulo')::date - $10::int + $11::time) AT TIME ZONE 'America/Sao_Paulo')`,
-      [userId, line.id, code, seg.origin.id, seg.dest.id, seg.origin.name, seg.dest.name, seg.durationMin, seg.distanceM, daysAgo, hhmm],
+      [
+        userId,
+        line.id,
+        code,
+        seg.origin.id,
+        seg.dest.id,
+        seg.origin.name,
+        seg.dest.name,
+        seg.durationMin,
+        seg.distanceM,
+        daysAgo,
+        hhmm,
+        JSON.stringify([
+          {
+            lineId: line.id,
+            lineCode: code,
+            originStopId: seg.origin.id,
+            destStopId: seg.dest.id,
+            originLabel: seg.origin.name,
+            destLabel: seg.dest.name,
+            durationMin: seg.durationMin,
+            distanceM: seg.distanceM,
+          },
+        ]),
+      ],
     );
   }
   console.log('Conta de demonstração criada com 3 favoritas e 5 viagens.');
 }
+
+// ---------- Sprint 2: comunidade, avisos de serviço e alertas ----------
+await seedSprint2(db, email);
 
 const counts = await db.query<{ lines: number; stops: number }>(
   'SELECT (SELECT count(*)::int FROM lines) AS lines, (SELECT count(*)::int FROM stops) AS stops',

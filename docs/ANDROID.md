@@ -1,6 +1,6 @@
 # App Android nativo (Android Studio)
 
-O app da Sprint 1 é React Native com Expo. Além do navegador e do Expo Go, ele tem o **projeto Android nativo
+O app (Sprint 2) é React Native com Expo. Além do navegador e do Expo Go, ele tem o **projeto Android nativo
 versionado em `mobile/android/`**, que abre direto no Android Studio e gera um APK instalável.
 
 ## Pré-requisitos
@@ -35,7 +35,7 @@ Faz tudo em sequência: sobe banco + API (se ainda não estiverem no ar), compil
 (5 a 20 min na primeira vez, ~1 min depois), liga o primeiro emulador do Device Manager, instala, dá a permissão de
 localização, coloca o GPS do emulador no centro da rede de demonstração e abre o app. Registro em `android.log`.
 
-O APK fica em **`apk/mobilidade-urbana-sprint01.apk`** — dá para arrastar para qualquer emulador.
+O APK fica em **`apk/mobilidade-urbana-sprint02.apk`** — dá para arrastar para qualquer emulador.
 
 | Comando | O que faz |
 |---|---|
@@ -74,6 +74,11 @@ o APK só aceita HTTPS (US13).
     nunca no repositório). Para publicar na Play Store, gere uma keystore com `keytool` e preencha essas propriedades.
 - O mapa é o mesmo Leaflet da web, dentro de uma `WebView` (`react-native-webview`): nenhuma chave de API.
 - APK padrão com as arquiteturas `x86_64` (emulador) e `arm64-v8a` (celulares); `-- --abis=...` muda.
+- **Sprint 2:** Android mínimo **7.0 (API 24)** — exigência do React Native 0.86 ([ADR-001](adr/ADR-001-android-minimo.md)).
+  O app pede a permissão de **notificações** (Android 13+) na primeira vez e cria o canal "Atrasos e alertas de
+  ônibus" (`expo-notifications`). Push com o app fechado exige Firebase: [NOTIFICACOES.md](NOTIFICACOES.md).
+- Ao trocar dependências nativas, regenere e confira o diff: `cd mobile && npx expo prebuild -p android --clean`
+  (na Sprint 2 mudou só o manifesto, `colors.xml`, `gradle.properties` e a versão em `app/build.gradle`).
 
 ## Problemas comuns
 
@@ -83,7 +88,8 @@ o APK só aceita HTTPS (US13).
 | `Nenhum emulador criado` | Device Manager → Create Virtual Device |
 | App abre mas mostra "Sem conexão com o servidor" | a API não está rodando (`npm run dev:api`) ou, no celular, o firewall bloqueia a porta 3333 |
 | Debug mostra tela vermelha "Unable to load script" | o Metro não está rodando: `npm run dev:android` |
-| Windows: erro com `260` / `ninja: build.ninja still dirty` | mova o projeto para uma pasta de caminho mais curto (ex.: `C:\dev\sprint01`) |
+| Windows: erro com `260` / `ninja: build.ninja still dirty` | mova o projeto para uma pasta de caminho mais curto (ex.: `C:\dev\sprint02`) |
 | Gradle sync falha com `A restricted method in java.lang.System has been called` | o Gradle está com Java 25: confira se `mobile/android/gradle/gradle-daemon-jvm.properties` existe (pede Java 17) e faça o sync de novo |
+| Notificações não aparecem | Configurações do Android → Apps → Mobilidade Urbana → Notificações: ative; no emulador, crie um aviso em `http://localhost:3333/dev/simular` |
 | Primeiro sync demora muito | normal: baixa o Gradle, o JDK 17 (se não houver) e as dependências — 5 a 15 min |
 | Gradle sync falha com `node` não encontrado | o Android Studio precisa achar o Node.js: feche e abra de novo depois de instalar o Node |

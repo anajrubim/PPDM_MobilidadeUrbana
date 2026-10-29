@@ -58,6 +58,8 @@ describe('US12 — dashboard com resumo de viagens e favoritos', () => {
       favorites: [],
       nextDepartures: [],
       trips: { last30Days: { trips: 0, minutes: 0, distance: 0 }, total: 0, mostUsedLine: null, recent: [] },
+      unreadNotifications: 0,
+      alerts: [],
     });
   });
 

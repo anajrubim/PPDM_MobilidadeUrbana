@@ -1,7 +1,7 @@
 {
   "name": "@dmr/backend",
-  "version": "0.1.0",
-  "description": "API Mobilidade Urbana — Sprint 1",
+  "version": "0.2.0",
+  "description": "API Mobilidade Urbana — Sprint 2",
   "private": true,
   "type": "module",
   "engines": {

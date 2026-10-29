@@ -1,5 +1,6 @@
 import Constants from 'expo-constants';
 import { NativeModules, Platform } from 'react-native';
+import { network } from './network';
 
 /**
  * Endereço da API.
@@ -62,6 +63,17 @@ export const apiSession = {
 const TIMEOUT_MS = 15_000;
 
 export async function request<T>(method: string, path: string, body?: unknown): Promise<T> {
+  const json = await send(method, path, body);
+  return (json?.data ?? undefined) as T;
+}
+
+/** Resposta inteira ({ data, meta }) — para listas paginadas (ex.: histórico de viagens, US19). */
+export async function requestPage<T, M>(path: string): Promise<{ data: T; meta: M }> {
+  const json = await send('GET', path);
+  return { data: json.data as T, meta: json.meta as M };
+}
+
+async function send(method: string, path: string, body?: unknown): Promise<{ data?: unknown; meta?: unknown }> {
   const headers: Record<string, string> = { Accept: 'application/json' };
   if (token) headers.Authorization = `Bearer ${token}`;
   if (body !== undefined) headers['Content-Type'] = 'application/json';
@@ -77,11 +89,14 @@ export async function request<T>(method: string, path: string, body?: unknown): 
       signal: controller.signal,
     });
   } catch {
+    // US27 — sem conexão: o app passa a mostrar os dados salvos
+    network.reportFailure();
     throw new ApiError(0, 'network', `Sem conexão com o servidor (${API_URL}). Verifique se a API está rodando.`);
   } finally {
     clearTimeout(timer);
   }
-  if (res.status === 204) return undefined as T;
+  network.reportSuccess();
+  if (res.status === 204) return {};
   const json = await res.json().catch(() => ({}));
   if (!res.ok) {
     // Sessão expirada ou senha trocada em outro aparelho: volta para o login
@@ -89,7 +104,7 @@ export async function request<T>(method: string, path: string, body?: unknown): 
     const e = json?.error ?? {};
     throw new ApiError(res.status, e.code ?? 'error', e.message ?? `Erro ${res.status}`, e.details);
   }
-  return json.data as T;
+  return json;
 }
 
 export const api = {
@@ -98,6 +113,7 @@ export const api = {
   put: <T>(p: string, b?: unknown) => request<T>('PUT', p, b ?? {}),
   patch: <T>(p: string, b?: unknown) => request<T>('PATCH', p, b ?? {}),
   del: <T>(p: string) => request<T>('DELETE', p),
+  page: <T, M>(p: string) => requestPage<T, M>(p),
 };
 
 /** Mensagem amigável para mostrar na tela. */

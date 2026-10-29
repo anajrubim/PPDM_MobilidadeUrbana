@@ -3,6 +3,7 @@ import pino from 'pino';
 import request from 'supertest';
 import { afterAll, beforeEach } from 'vitest';
 import { createApp, type Deps } from '../src/app.js';
+import type { PushMessage } from '../src/modules/notifications/push.js';
 import { loadConfig } from '../src/config.js';
 import { seedNetwork } from '../src/db/demo-data.js';
 import { createPool } from '../src/db/pool.js';
@@ -13,6 +14,8 @@ export interface TestContext {
   deps: Deps;
   app: ReturnType<typeof createApp>;
   mails: Mail[];
+  /** Pushes "enviados" (o provedor de teste só registra). */
+  pushes: { tokens: string[]; msg: PushMessage }[];
   now: { value: Date };
 }
 
@@ -22,7 +25,7 @@ export const FIXED_NOW = new Date('2026-09-21T12:00:00Z');
 /** Cria app + banco limpo a cada teste. `withNetwork` popula a rede de demonstração. */
 export function useTestApp(opts: { withNetwork?: boolean; env?: Record<string, string> } = {}): TestContext {
   const db = createPool(TEST_DB);
-  const ctx = { mails: [], now: { value: FIXED_NOW } } as unknown as TestContext;
+  const ctx = { mails: [], pushes: [], now: { value: FIXED_NOW } } as unknown as TestContext;
   const config = loadConfig({
     NODE_ENV: 'test',
     DATABASE_URL: TEST_DB,
@@ -35,6 +38,7 @@ export function useTestApp(opts: { withNetwork?: boolean; env?: Record<string, s
     config,
     logger: pino({ level: 'silent' }),
     mailer: { send: async (m) => void ctx.mails.push(m) },
+    push: { enabled: true, send: async (tokens, msg) => void ctx.pushes.push({ tokens, msg }) },
     clock: () => ctx.now.value,
   };
   ctx.deps = deps;
@@ -42,7 +46,10 @@ export function useTestApp(opts: { withNetwork?: boolean; env?: Record<string, s
 
   beforeEach(async () => {
     ctx.mails.length = 0;
+    ctx.pushes.length = 0;
     ctx.now.value = FIXED_NOW;
+    ctx.app.services.alerts.invalidate();
+    ctx.app.cache.invalidate();
     const { rows } = await db.query<{ tablename: string }>(
       "SELECT tablename FROM pg_tables WHERE schemaname = 'public' AND tablename <> 'schema_migrations'",
     );

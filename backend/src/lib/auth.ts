@@ -57,6 +57,8 @@ export async function authenticate(db: Queryable, secret: string, token: string)
 
 export function authMiddleware(db: Queryable, secret: string, opts: { optional?: boolean } = {}) {
   return async (req: Request, _res: Response, next: NextFunction) => {
+    // Já autenticado por um middleware anterior (ex.: o opcional da API inteira)
+    if (req.user) return next();
     const token = bearer(req);
     if (!token) {
       if (opts.optional) return next();

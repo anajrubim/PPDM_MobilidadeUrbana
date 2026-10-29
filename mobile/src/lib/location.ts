@@ -1,4 +1,5 @@
 import * as Location from 'expo-location';
+import { useIsFocused } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
 import type { LatLng } from './geo';
 
@@ -9,6 +10,9 @@ export type LocationStatus = 'idle' | 'loading' | 'granted' | 'denied' | 'unavai
  * Com `watch`, acompanha o movimento. `retry()` pede a permissão de novo.
  */
 export function useCurrentLocation(opts: { watch?: boolean } = {}) {
+  // Acompanhar o movimento só com a tela visível: tela escondida na pilha ou em outra aba desliga o GPS (A2)
+  const focused = useIsFocused();
+  const watch = !!opts.watch && focused;
   const [position, setPosition] = useState<LatLng | null>(null);
   const [status, setStatus] = useState<LocationStatus>('idle');
   const [attempt, setAttempt] = useState(0);
@@ -36,10 +40,14 @@ export function useCurrentLocation(opts: { watch?: boolean } = {}) {
         if (cancelled) return;
         setPosition({ latitude: cur.coords.latitude, longitude: cur.coords.longitude });
         setStatus('granted');
-        if (opts.watch) {
-          sub = await Location.watchPositionAsync({ accuracy: Location.Accuracy.High, timeInterval: 5000, distanceInterval: 10, mayShowUserSettingsDialog: false }, (p) =>
-            setPosition({ latitude: p.coords.latitude, longitude: p.coords.longitude }),
+        if (watch) {
+          const s = await Location.watchPositionAsync(
+            { accuracy: Location.Accuracy.High, timeInterval: 5000, distanceInterval: 10, mayShowUserSettingsDialog: false },
+            (p) => setPosition({ latitude: p.coords.latitude, longitude: p.coords.longitude }),
           );
+          // Desmontou enquanto o GPS ligava: desliga já
+          if (cancelled) s.remove();
+          else sub = s;
         }
       } catch {
         if (!cancelled) setStatus('unavailable');
@@ -49,7 +57,7 @@ export function useCurrentLocation(opts: { watch?: boolean } = {}) {
       cancelled = true;
       sub?.remove();
     };
-  }, [opts.watch, attempt]);
+  }, [watch, attempt]);
 
   const retry = useCallback(() => setAttempt((n) => n + 1), []);
   return { position, status, retry };

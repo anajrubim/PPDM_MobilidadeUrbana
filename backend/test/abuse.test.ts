@@ -167,7 +167,7 @@ describe('cabeçalhos forjados (sem proxy na frente)', () => {
 function directApp() {
   return (directCache ??= createApp({
     ...ctx.deps,
-    config: loadConfig({ NODE_ENV: 'production', JWT_SECRET: 'x'.repeat(40), FORCE_HTTPS: 'false' }),
+    config: loadConfig({ NODE_ENV: 'production', JWT_SECRET: 'x'.repeat(40), PUBLIC_SHARE_URL: 'https://mobilidade.app/s', FORCE_HTTPS: 'false' }),
   }));
 }
 let directCache: ReturnType<typeof createApp> | undefined;

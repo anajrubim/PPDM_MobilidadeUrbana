@@ -97,7 +97,7 @@ describe('US07/US08 — trajeto e paradas da linha', () => {
     const id = await lineId(ctx, '175');
     const res = await api().get(`/api/v1/lines/${id}`).expect(200);
     // 09:00 em São Paulo; partidas 05:00 + n×18 min → 09:12 sai do terminal
-    expect(res.body.data.stops[0].nextArrival).toEqual({ inMin: 12, at: '09:12' });
+    expect(res.body.data.stops[0].nextArrival).toMatchObject({ inMin: 12, at: '09:12', scheduledAt: '09:12', live: false });
   });
 
   it('linha inexistente → 404; id inválido → 422', async () => {
@@ -139,11 +139,13 @@ describe('US09 — linhas da parada e horários previstos', () => {
     const s = res.body.data;
     expect(s.name).toBe('Terminal Central');
     const l175 = s.lines.find((l: { code: string }) => l.code === '175');
-    expect(l175.arrivals).toEqual([
-      { inMin: 12, at: '09:12' },
-      { inMin: 30, at: '09:30' },
-      { inMin: 48, at: '09:48' },
+    // No ponto inicial as próximas partidas ainda não saíram: previsão = programação (live: false)
+    expect(l175.arrivals).toMatchObject([
+      { inMin: 12, at: '09:12', scheduledAt: '09:12', delayMin: 0, live: false },
+      { inMin: 30, at: '09:30', scheduledAt: '09:30', live: false },
+      { inMin: 48, at: '09:48', scheduledAt: '09:48', live: false },
     ]);
+    expect(l175.offsets).toEqual([0]);
     expect(l175.timetable[0]).toBe('05:00');
     expect(l175.timetable).toContain('23:18');
     // ordenadas pela próxima chegada

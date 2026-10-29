@@ -23,3 +23,5 @@ verificacao.log
 # APK compilado (npm run android:apk) e saída da API em segundo plano
 /apk/
 api-android.log
+# backups do banco (npm run backup / serviço backup do docker-compose)
+/backups/
