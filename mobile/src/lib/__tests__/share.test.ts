@@ -83,7 +83,7 @@ describe('openShareSheet', () => {
 
     await expect(openShareSheet(example, 'Ana')).resolves.toBe('shared');
     expect(Share.share).toHaveBeenCalledWith({
-      message: expect.stringContaining(example.url),
+      message: expect.stringContaining(example.url!),
       title: 'Minha localização',
     });
   });
@@ -105,7 +105,7 @@ describe('openShareSheet', () => {
     await expect(openShareSheet(example, 'Ana')).resolves.toBe('shared');
     expect(share).toHaveBeenCalledWith({
       title: 'Minha localização',
-      text: expect.stringContaining(example.url),
+      text: expect.stringContaining(example.url!),
       url: example.url,
     });
   });
@@ -117,7 +117,7 @@ describe('openShareSheet', () => {
     setNavigator({ share, clipboard: { writeText } });
 
     await expect(openShareSheet(example, 'Ana')).resolves.toBe('copied');
-    expect(writeText).toHaveBeenCalledWith(expect.stringContaining(example.url));
+    expect(writeText).toHaveBeenCalledWith(expect.stringContaining(example.url!));
   });
 
   it('copia a mensagem quando navigator.share não existe', async () => {
