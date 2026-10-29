@@ -33,7 +33,6 @@ const DEFAULTS = {
 export function devToolsRoutes(deps: Deps, cache: NetworkCache, services: Services): Router {
   const r = Router();
   r.use(['/dev/simular', '/api/v1/dev'], (req, res, next) => {
-    return next()
     if (isLocalDevRequest(req)) return next();
     res.status(403).json({ error: { code: 'forbidden', message: 'As ferramentas de desenvolvimento só abrem no próprio computador' } });
   });
