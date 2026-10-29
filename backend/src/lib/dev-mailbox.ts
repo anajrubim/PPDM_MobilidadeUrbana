@@ -44,7 +44,7 @@ header{display:flex;flex-direction:column;gap:2px;margin-bottom:10px}header span
 pre{white-space:pre-wrap;word-break:break-all;font:14px/1.5 system-ui,sans-serif;margin:0}
 a{color:#1B4F72;font-weight:700}.empty{color:#566573}
 </style></head><body>
-<h1>📬 Caixa de e-mails de desenvolvimento</h1>
+<h1>Caixa de e-mails de desenvolvimento</h1>
 <p class="sub">SMTP não configurado: os e-mails enviados pela API aparecem aqui (atualiza a cada 5 s).</p>
 ${items || '<p class="empty">Nenhum e-mail enviado ainda.</p>'}
 </body></html>`);
