@@ -6,6 +6,7 @@ test.beforeEach(({ page }) => {
   errors = collectErrors(page);
 });
 test.afterEach(() => {
+  if (errors.length) console.log('ERROS:', JSON.stringify(errors).slice(0, 1500));
   expect(errors, 'erros no console/página').toEqual([]);
 });
 

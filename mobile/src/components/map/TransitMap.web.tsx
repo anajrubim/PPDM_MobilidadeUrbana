@@ -3,20 +3,20 @@ import { View } from 'react-native';
 import { theme } from '../../lib/theme';
 import { mapHtml } from './html';
 import { LocateButton } from './LocateButton';
-import { toMapState } from './state';
+import { useMapState } from './state';
 import type { MapCommand, MapEvent, TransitMapProps } from './types';
 
 /**
  * Mapa no navegador (US07, US10): a mesma página Leaflet do celular, num iframe.
  */
 function TransitMapView(props: TransitMapProps) {
-  const { height = 300, onPointPress, showLocateButton } = props;
+  const { height = 300, onPointPress, showLocateButton, onTileStats, clearTilesKey } = props;
   const frame = useRef<HTMLIFrameElement | null>(null);
   const ready = useRef(false);
-  const state = useMemo(() => toMapState(props), [props]);
-  const latest = useRef({ state, onPointPress });
+  const state = useMapState(props);
+  const latest = useRef({ state, onPointPress, onTileStats });
   useEffect(() => {
-    latest.current = { state, onPointPress };
+    latest.current = { state, onPointPress, onTileStats };
   });
 
   const post = useCallback((cmd: MapCommand) => {
@@ -28,6 +28,10 @@ function TransitMapView(props: TransitMapProps) {
   }, [state, post]);
 
   useEffect(() => {
+    if (clearTilesKey && ready.current) post({ type: 'clearTiles' });
+  }, [clearTilesKey, post]);
+
+  useEffect(() => {
     const onMessage = (e: MessageEvent) => {
       if (e.source !== frame.current?.contentWindow) return;
       const msg = e.data as MapEvent & { __mu?: string };
@@ -36,6 +40,7 @@ function TransitMapView(props: TransitMapProps) {
         ready.current = true;
         post({ type: 'state', state: latest.current.state });
       } else if (msg.type === 'point') latest.current.onPointPress?.(msg.id);
+      else if (msg.type === 'tileStats') latest.current.onTileStats?.({ cached: msg.cached, network: msg.network });
     };
     window.addEventListener('message', onMessage);
     return () => window.removeEventListener('message', onMessage);

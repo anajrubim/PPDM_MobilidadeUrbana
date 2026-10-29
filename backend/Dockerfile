@@ -1,4 +1,4 @@
-# API Mobilidade Urbana (Sprint 1) — imagem de produção
+# API Mobilidade Urbana (Sprint 2) — imagem de produção
 # --- build ---
 FROM node:22-alpine AS build
 WORKDIR /app

@@ -7,6 +7,7 @@ import { loadConfig } from './config.js';
 import { runMigrations } from './db/migrator.js';
 import { createPool } from './db/pool.js';
 import { createMailer } from './lib/mailer.js';
+import { expoPush, noPush } from './modules/notifications/push.js';
 
 const config = loadConfig();
 const logger = pino({
@@ -36,9 +37,13 @@ const deps: Deps = {
   config,
   logger,
   mailer: createMailer(config.SMTP_URL, config.MAIL_FROM, logger),
+  push: config.PUSH_PROVIDER === 'expo' ? expoPush(logger, config.EXPO_ACCESS_TOKEN || undefined) : noPush,
   clock: () => new Date(),
 };
 const app = createApp(deps);
+// US17/US18 — verificação periódica de atrasos, avisos de itinerário e ônibus chegando aos pontos
+app.services.monitor.start(config.MONITOR_INTERVAL_S);
+if (config.MONITOR_INTERVAL_S > 0) logger.info(`Monitor de atrasos e alertas a cada ${config.MONITOR_INTERVAL_S} s (push: ${config.PUSH_PROVIDER})`);
 const servers: (http.Server | https.Server)[] = [];
 
 // US13 — HTTPS direto no Node quando há certificado (npm run certs gera um autoassinado para desenvolvimento)
@@ -59,12 +64,14 @@ plain.listen(config.PORT, () =>
   logger.info(`API (HTTP${config.FORCE_HTTPS ? ' → redireciona para HTTPS' : ''}) em http://localhost:${config.PORT}/api/v1`),
 );
 servers.push(plain);
-if (config.NODE_ENV !== 'production' && deps.mailer.outbox) {
-  logger.info(`Caixa de e-mails de desenvolvimento: http://localhost:${config.PORT}/dev/emails`);
+if (config.NODE_ENV !== 'production') {
+  if (deps.mailer.outbox) logger.info(`Caixa de e-mails de desenvolvimento: http://localhost:${config.PORT}/dev/emails`);
+  logger.info(`Simular atraso/desvio (notificações): http://localhost:${config.PORT}/dev/simular`);
 }
 
 const shutdown = () => {
   logger.info('encerrando...');
+  app.services.monitor.stop();
   let open = servers.length;
   for (const s of servers) {
     s.close(() => {

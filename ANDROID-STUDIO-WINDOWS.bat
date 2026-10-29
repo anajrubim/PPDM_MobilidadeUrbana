@@ -3,7 +3,7 @@ chcp 65001 >nul
 cd /d "%~dp0"
 title Mobilidade Urbana - Android Studio (API + Metro)
 echo.
-echo  Mobilidade Urbana - Sprint 1 pelo Android Studio (botao Run)
+echo  Mobilidade Urbana - Sprint 2 pelo Android Studio (botao Run)
 echo  1. Este script sobe o banco, a API e o Metro e abre a pasta mobile\android no Android Studio.
 echo  2. No Android Studio, espere o "Gradle sync" terminar, escolha o emulador e clique em Run.
 echo  Deixe esta janela aberta enquanto usa o app (Ctrl+C para parar).

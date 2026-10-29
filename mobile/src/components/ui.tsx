@@ -6,6 +6,7 @@ import {
   Pressable,
   ScrollView,
   StyleSheet,
+  Switch,
   Text,
   TextInput,
   View,
@@ -30,6 +31,7 @@ export function T({
   style,
   numberOfLines,
   center,
+  accessibilityLabel,
 }: {
   children: ReactNode;
   v?: Variant;
@@ -37,6 +39,7 @@ export function T({
   style?: StyleProp<TextStyle>;
   numberOfLines?: number;
   center?: boolean;
+  accessibilityLabel?: string;
 }) {
   const t = useTheme();
   const base: Record<Variant, TextStyle> = {
@@ -50,7 +53,7 @@ export function T({
     mono: { fontFamily: t.font.mono, fontSize: 12, fontWeight: '600', color: t.colors.text },
   };
   return (
-    <Text numberOfLines={numberOfLines} style={[base[v], color ? { color } : null, center ? { textAlign: 'center' } : null, style]}>
+    <Text numberOfLines={numberOfLines} accessibilityLabel={accessibilityLabel} style={[base[v], color ? { color } : null, center ? { textAlign: 'center' } : null, style]}>
       {children}
     </Text>
   );
@@ -412,6 +415,169 @@ export function Pill({ label, tone = 'blue' }: { label: string; tone?: 'blue' | 
   return (
     <View style={{ backgroundColor: bg, borderRadius: 20, paddingHorizontal: 9, paddingVertical: 3, alignSelf: 'flex-start' }}>
       <Text style={{ color: fg, fontFamily: t.font.bold, fontSize: 11 }}>{label}</Text>
+    </View>
+  );
+}
+
+// ---------- Sprint 2 ----------
+
+/** Alternância com rótulo (preferências de notificação, alertas). */
+export function Toggle({
+  label,
+  subtitle,
+  value,
+  onChange,
+  icon,
+  disabled,
+}: {
+  label: string;
+  subtitle?: string;
+  value: boolean;
+  onChange: (v: boolean) => void;
+  icon?: IconName;
+  disabled?: boolean;
+}) {
+  const t = useTheme();
+  return (
+    <View style={styles.row}>
+      {icon && (
+        <View style={[styles.rowIcon, { backgroundColor: t.colors.tint }]}>
+          <Icon name={icon} size={18} color={t.colors.primary} />
+        </View>
+      )}
+      <View style={{ flex: 1 }}>
+        <T v="h3" style={{ fontSize: 14 }}>
+          {label}
+        </T>
+        {subtitle ? <T v="small">{subtitle}</T> : null}
+      </View>
+      <Switch
+        accessibilityLabel={label}
+        value={value}
+        onValueChange={onChange}
+        disabled={disabled}
+        trackColor={{ true: t.colors.primary, false: t.colors.border }}
+        thumbColor="#fff"
+      />
+    </View>
+  );
+}
+
+/** Controle segmentado ("Novas | Histórico"). */
+export function Segment<K extends string>({ options, value, onChange }: { options: { key: K; label: string }[]; value: K; onChange: (k: K) => void }) {
+  const t = useTheme();
+  return (
+    <View accessibilityRole="tablist" style={{ flexDirection: 'row', backgroundColor: t.colors.bg, borderRadius: 10, padding: 3, marginBottom: 14, borderWidth: 1, borderColor: t.colors.border }}>
+      {options.map((o) => {
+        const active = o.key === value;
+        return (
+          <Pressable
+            key={o.key}
+            accessibilityRole="tab"
+            accessibilityState={{ selected: active }}
+            onPress={() => onChange(o.key)}
+            style={[{ flex: 1, alignItems: 'center', paddingVertical: 8, borderRadius: 8 }, active && { backgroundColor: t.colors.surface, ...cardShadow }]}
+          >
+            <Text style={{ fontFamily: t.font.bold, fontSize: 12.5, color: active ? t.colors.primary : t.colors.textSoft }}>{o.label}</Text>
+          </Pressable>
+        );
+      })}
+    </View>
+  );
+}
+
+/** Nota em estrelas: só exibição (size pequeno) ou escolha (onChange) — US21. */
+export function Stars({ value, onChange, size = 18 }: { value: number; onChange?: (v: number) => void; size?: number }) {
+  const t = useTheme();
+  return (
+    <View style={{ flexDirection: 'row', gap: onChange ? 8 : 2 }} accessibilityLabel={`${value} de 5 estrelas`}>
+      {[1, 2, 3, 4, 5].map((n) => {
+        const icon = <Icon name={n <= Math.round(value) ? 'starfill' : 'star'} size={size} color={n <= Math.round(value) ? t.colors.gold : t.colors.border} />;
+        return onChange ? (
+          <Pressable
+            key={n}
+            accessibilityRole="button"
+            accessibilityLabel={`${n} ${n === 1 ? 'estrela' : 'estrelas'}`}
+            accessibilityState={{ selected: n === value }}
+            hitSlop={6}
+            onPress={() => onChange(n)}
+          >
+            {icon}
+          </Pressable>
+        ) : (
+          <View key={n}>{icon}</View>
+        );
+      })}
+    </View>
+  );
+}
+
+/** Campo de texto de várias linhas com contador (comentário, descrição). */
+export function TextArea({
+  label,
+  value,
+  onChangeText,
+  max,
+  placeholder,
+  error,
+}: {
+  label: string;
+  value: string;
+  onChangeText: (v: string) => void;
+  max: number;
+  placeholder?: string;
+  error?: string | null;
+}) {
+  const t = useTheme();
+  return (
+    <View style={{ marginBottom: 14 }}>
+      <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 6 }}>
+        <T v="label">{label}</T>
+        <T v="caption" color={value.length > max ? t.colors.red : t.colors.textFaint}>
+          {value.length}/{max}
+        </T>
+      </View>
+      <TextInput
+        accessibilityLabel={label}
+        multiline
+        value={value}
+        onChangeText={onChangeText}
+        maxLength={max}
+        placeholder={placeholder}
+        placeholderTextColor={t.colors.textFaint}
+        style={[
+          styles.input,
+          { minHeight: 90, textAlignVertical: 'top', paddingVertical: 12, fontFamily: t.font.medium, fontSize: 14, color: t.colors.text },
+          { backgroundColor: t.colors.surface, borderColor: error ? t.colors.red : t.colors.border },
+        ]}
+      />
+      {error ? (
+        <T v="small" color={t.colors.red} style={{ marginTop: 4 }}>
+          {error}
+        </T>
+      ) : null}
+    </View>
+  );
+}
+
+/** Aviso de serviço (atraso, desvio, suspensão) — US17. */
+export function AlertBanner({ kind, title, message }: { kind: 'delay' | 'detour' | 'suspension'; title: string; message?: string }) {
+  const t = useTheme();
+  const [bg, fg, icon] =
+    kind === 'suspension' ? [t.colors.redTint, t.colors.redDeep, 'wrench' as const] : kind === 'detour' ? [t.colors.amberTint, t.colors.amberDeep, 'refresh' as const] : [t.colors.amberTint, t.colors.amberDeep, 'clock' as const];
+  return (
+    <View accessibilityRole="alert" style={[styles.note, { backgroundColor: bg, alignItems: 'flex-start' }]}>
+      <Icon name={icon} size={16} color={fg} />
+      <View style={{ flex: 1 }}>
+        <T v="small" color={fg} style={{ fontFamily: t.font.bold }}>
+          {title}
+        </T>
+        {message ? (
+          <T v="small" color={fg}>
+            {message}
+          </T>
+        ) : null}
+      </View>
     </View>
   );
 }

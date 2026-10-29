@@ -6,7 +6,8 @@ import { Icon } from '../../components/Icon';
 import { Card, Chip, Empty, ErrorNote, Loading, T } from '../../components/ui';
 import { formatDistance } from '../../lib/geo';
 import { useCurrentLocation } from '../../lib/location';
-import { useApi } from '../../lib/query';
+import { OFFLINE_PATHS, searchStopsOffline } from '../../lib/offline';
+import { cached, useApi } from '../../lib/query';
 import { theme } from '../../lib/theme';
 import type { StopSummary } from '../../lib/types';
 
@@ -28,10 +29,14 @@ export default function Stops() {
   const params = new URLSearchParams({ sort: effectiveSort, limit: '300' });
   if (q) params.set('q', q);
   if (position) {
-    params.set('lat', position.latitude.toFixed(5));
-    params.set('lng', position.longitude.toFixed(5));
+    params.set('lat', position.latitude.toFixed(3));
+    params.set('lng', position.longitude.toFixed(3));
   }
-  const stops = useApi<StopSummary[]>(`/stops?${params.toString()}`);
+  // US27 — sem internet, filtra e ordena no aparelho a lista completa salva (inclusive por distância)
+  const stops = useApi<StopSummary[]>(`/stops?${params.toString()}`, {
+    fallback: () => searchStopsOffline(cached<StopSummary[]>(OFFLINE_PATHS.stops), q, effectiveSort, position),
+    keepPrevious: true,
+  });
 
   const renderItem = useCallback(
     ({ item: s }: { item: StopSummary }) => (

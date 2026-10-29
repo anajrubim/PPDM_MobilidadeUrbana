@@ -1,4 +1,4 @@
-// npm run verify — verificação completa da Sprint 1 nesta máquina (Windows ou Linux), do zero:
+// npm run verify — verificação completa da Sprint 2 nesta máquina (Windows ou Linux), do zero:
 //   dependências (com Playwright) → banco (Docker) → seed → lint + tipos + testes → API + app → testes E2E
 //   → (opcional, --video) grava o tour em vídeo.
 // Tudo vai para verificacao.log na raiz. Código de saída 0 = tudo certo.
@@ -53,7 +53,7 @@ async function waitFor(url, secs) {
   return false;
 }
 
-out(`Verificação da Sprint 1 — ${new Date().toLocaleString('pt-BR')} — ${process.platform} ${process.arch} — Node ${process.versions.node}\n`);
+out(`Verificação da Sprint 2 — ${new Date().toLocaleString('pt-BR')} — ${process.platform} ${process.arch} — Node ${process.versions.node}\n`);
 let ok = runStep('Preparação (npm run setup -- --e2e)', 'node', ['scripts/setup.mjs', '--e2e']);
 if (ok && !noDocker) ok = runStep('Banco PostgreSQL (npm run db:up)', 'node', ['scripts/db.mjs', 'up']);
 if (ok) ok = runStep('Dados de demonstração (npm run seed)', 'npm', ['run', 'seed']);

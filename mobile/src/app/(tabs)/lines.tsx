@@ -6,7 +6,8 @@ import { LineCard } from '../../components/LineCard';
 import { Chip, Empty, ErrorNote, Loading, T } from '../../components/ui';
 import { useToggleFavorite } from '../../lib/favorites';
 import { SERVICE_LABEL } from '../../lib/format';
-import { useApi } from '../../lib/query';
+import { OFFLINE_PATHS, searchLinesOffline } from '../../lib/offline';
+import { cached, useApi } from '../../lib/query';
 import { theme } from '../../lib/theme';
 import type { LineSummary, ServiceType } from '../../lib/types';
 
@@ -18,7 +19,8 @@ export default function Lines() {
   const [text, setText] = useState('');
   const [query, setQuery] = useState('');
   const [filter, setFilter] = useState<Filter>('all');
-  const toggle = useToggleFavorite();
+  // `mutate` é estável: a lista não re-renderiza todas as linhas a cada render
+  const { mutate } = useToggleFavorite();
 
   // Espera 250 ms depois da última tecla: filtra enquanto digita sem uma requisição por letra
   useEffect(() => {
@@ -29,12 +31,16 @@ export default function Lines() {
   const params = new URLSearchParams();
   if (query) params.set('q', query);
   if (filter !== 'all' && filter !== 'favorites') params.set('serviceType', filter);
-  const lines = useApi<LineSummary[]>(`/lines${params.toString() ? `?${params.toString()}` : ''}`);
+  // US27 — sem internet, a busca é feita no aparelho sobre a lista completa salva
+  const lines = useApi<LineSummary[]>(`/lines${params.toString() ? `?${params.toString()}` : ''}`, {
+    keepPrevious: true,
+    fallback: () => searchLinesOffline(cached<LineSummary[]>(OFFLINE_PATHS.lines), query, params.get('serviceType') ?? undefined),
+  });
   const data = (lines.data ?? []).filter((l) => filter !== 'favorites' || l.isFavorite);
 
   const renderItem = useCallback(
-    ({ item }: { item: LineSummary }) => <LineCard line={item} onToggleFavorite={(l) => toggle.mutate(l)} />,
-    [toggle],
+    ({ item }: { item: LineSummary }) => <LineCard line={item} onToggleFavorite={(l) => mutate(l)} />,
+    [mutate],
   );
 
   const filters: { key: Filter; label: string }[] = [

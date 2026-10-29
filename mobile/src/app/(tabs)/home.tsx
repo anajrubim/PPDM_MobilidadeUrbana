@@ -1,21 +1,27 @@
 import { router } from 'expo-router';
 import { Pressable, RefreshControl, ScrollView, View } from 'react-native';
 import { Icon } from '../../components/Icon';
-import { Card, ErrorNote, Hero, LineBadge, Loading, SectionTitle, T } from '../../components/ui';
+import { AlertBanner, Card, ErrorNote, Hero, LineBadge, Loading, SectionTitle, T } from '../../components/ui';
 import { useApp } from '../../lib/app-state';
-import { dayLabel, greeting, initials, minutesLabel } from '../../lib/format';
+import { dayLabel, greeting, initials, minutesLabel, uniqueAlerts } from '../../lib/format';
 import { formatDistance } from '../../lib/geo';
 import { useCurrentLocation } from '../../lib/location';
-import { useApi } from '../../lib/query';
+import { cached, useApi } from '../../lib/query';
 import { theme } from '../../lib/theme';
 import type { Dashboard } from '../../lib/types';
 
-/** US12 — dashboard: resumo das viagens, linhas favoritas e próximas partidas delas. */
+/** US12 — dashboard: resumo das viagens, linhas favoritas e próximas partidas; Sprint 2: planejar (US15), avisos (US17) e notificações (US20). */
 export default function Home() {
   const { user } = useApp();
   const { position } = useCurrentLocation();
-  const q = position ? `?lat=${position.latitude.toFixed(5)}&lng=${position.longitude.toFixed(5)}` : '';
-  const dash = useApi<Dashboard>(`/me/dashboard${q}`, { refetchInterval: 60_000 });
+  // Posição arredondada (~100 m): andar alguns metros não cria outra consulta (nem pisca a tela)
+  const q = position ? `?lat=${position.latitude.toFixed(3)}&lng=${position.longitude.toFixed(3)}` : '';
+  const dash = useApi<Dashboard>(`/me/dashboard${q}`, {
+    refetchInterval: 60_000,
+    keepPrevious: true,
+    // Sem conexão: o resumo salvo sem posição (as chaves com posição não ficam no aparelho)
+    fallback: () => cached<Dashboard>('/me/dashboard'),
+  });
   const d = dash.data;
   const month = d?.trips.last30Days;
 
@@ -32,6 +38,35 @@ export default function Home() {
                 {user?.name.split(' ')[0]}
               </T>
             </View>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={d?.unreadNotifications ? `Notificações: ${d.unreadNotifications} não lidas` : 'Notificações'}
+              hitSlop={8}
+              onPress={() => router.push('/notifications')}
+              style={{ width: 40, height: 40, alignItems: 'center', justifyContent: 'center' }}
+            >
+              <Icon name="bell" size={22} color="#fff" />
+              {!!d?.unreadNotifications && (
+                <View
+                  style={{
+                    position: 'absolute',
+                    top: 3,
+                    right: 2,
+                    minWidth: 18,
+                    height: 18,
+                    borderRadius: 9,
+                    paddingHorizontal: 4,
+                    backgroundColor: theme.colors.red,
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  }}
+                >
+                  <T v="caption" color="#fff" style={{ fontSize: 10 }}>
+                    {d.unreadNotifications > 99 ? '99+' : String(d.unreadNotifications)}
+                  </T>
+                </View>
+              )}
+            </Pressable>
             <Pressable accessibilityRole="button" accessibilityLabel="Abrir perfil" onPress={() => router.push('/profile')}>
               <View
                 style={{
@@ -51,8 +86,8 @@ export default function Home() {
           </View>
           <Pressable
             accessibilityRole="search"
-            accessibilityLabel="Ir para a busca de linhas"
-            onPress={() => router.push('/lines')}
+            accessibilityLabel="Planejar viagem: para onde vamos?"
+            onPress={() => router.push('/plan')}
             style={{
               marginTop: 16,
               backgroundColor: 'rgba(255,255,255,0.16)',
@@ -67,7 +102,7 @@ export default function Home() {
           >
             <Icon name="search" size={18} color="#E3EDF3" />
             <T v="body" color="#E3EDF3">
-              Buscar linha por número ou nome
+              Para onde vamos?
             </T>
           </Pressable>
 
@@ -99,6 +134,15 @@ export default function Home() {
         <View style={{ padding: 20, gap: 8 }}>
           {dash.isLoading && <Loading />}
           {dash.error && !d && <ErrorNote message="Não foi possível carregar o resumo." onRetry={() => void dash.refetch()} />}
+          {/* US17 — avisos de atraso/itinerário nas favoritas */}
+          {uniqueAlerts(d?.alerts).map((a) => {
+            const fav = d?.favorites.find((f) => f.id === a.lineId);
+            return (
+              <Pressable key={a.id} accessibilityRole="button" onPress={() => router.push(`/lines/${a.lineId}`)}>
+                <AlertBanner kind={a.kind} title={`Linha ${fav?.code ?? ''}: ${a.title}`} message={a.message} />
+              </Pressable>
+            );
+          })}
 
           <SectionTitle action="ver linhas" onAction={() => router.push('/lines')}>
             Linhas favoritas
@@ -134,6 +178,11 @@ export default function Home() {
                   </View>
                   {next && (
                     <View style={{ alignItems: 'flex-end' }}>
+                      {next.live && (
+                        <T v="caption" color={(next.delayMin ?? 0) >= 5 ? theme.colors.amberDeep : theme.colors.green}>
+                          ● {(next.delayMin ?? 0) > 0 ? `+${next.delayMin} min` : 'ao vivo'}
+                        </T>
+                      )}
                       <T v="h2" color={next.inMin <= 3 ? theme.colors.green : theme.colors.primary}>
                         {next.inMin > 90 ? next.at : next.inMin <= 0 ? 'agora' : next.inMin}
                       </T>
@@ -148,7 +197,7 @@ export default function Home() {
           <SectionTitle>Viagens recentes</SectionTitle>
           {d && d.trips.recent.length === 0 && <T v="small">Nenhuma viagem ainda. Abra uma linha e toque em “Registrar viagem”.</T>}
           {d?.trips.recent.map((t) => (
-            <Card key={t.id} onPress={t.lineId ? () => router.push(`/lines/${t.lineId}`) : undefined} style={{ marginBottom: 8 }}>
+            <Card key={t.id} onPress={() => router.push('/history')} style={{ marginBottom: 8 }}>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
                 <Icon name="history" size={22} color={theme.colors.primary} />
                 <View style={{ flex: 1 }}>
@@ -163,18 +212,21 @@ export default function Home() {
             </Card>
           ))}
           {d && d.trips.total > 0 && (
-            <T v="caption" center style={{ marginTop: 4 }}>
-              {d.trips.total === 1 ? '1 viagem registrada no total' : `${d.trips.total} viagens registradas no total`}
-            </T>
+            <Pressable accessibilityRole="link" onPress={() => router.push('/history')}>
+              <T v="caption" center color={theme.colors.primary} style={{ marginTop: 4 }}>
+                {d.trips.total === 1 ? '1 viagem registrada' : `${d.trips.total} viagens registradas`} · ver histórico →
+              </T>
+            </Pressable>
           )}
 
           <SectionTitle>Atalhos</SectionTitle>
           <View style={{ flexDirection: 'row', gap: 10 }}>
             {(
               [
-                { icon: 'bus', label: 'Linhas', href: '/lines' },
-                { icon: 'pin', label: 'Paradas', href: '/stops' },
-                { icon: 'target', label: 'Onde estou', href: '/map' },
+                { icon: 'route', label: 'Planejar', href: '/plan' },
+                { icon: 'history', label: 'Histórico', href: '/history' },
+                { icon: 'target', label: 'Alertas', href: '/alerts' },
+                { icon: 'share', label: 'Compartilhar', href: '/share' },
               ] as const
             ).map((s) => (
               <Pressable
@@ -205,7 +257,7 @@ export default function Home() {
             ))}
           </View>
           <T v="caption" center style={{ marginTop: 18 }}>
-            Horários previstos pela programação das linhas.
+            Previsões com o atraso dos ônibus em circulação (● ao vivo).
           </T>
         </View>
       </ScrollView>

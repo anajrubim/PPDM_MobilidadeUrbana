@@ -41,7 +41,7 @@ describe('US13 — HTTPS no Node', () => {
         )
         .on('error', reject);
     });
-    expect(JSON.parse(body).data).toMatchObject({ status: 'ok', app: 'mobilidade-urbana-sprint-01', https: true });
+    expect(JSON.parse(body).data).toMatchObject({ status: 'ok', app: 'mobilidade-urbana-sprint-02', https: true });
   });
 
   it('envia HSTS e cabeçalhos de segurança', async () => {
@@ -98,7 +98,7 @@ describe('US13 — senhas hasheadas', () => {
 describe('configuração', () => {
   it('produção exige JWT_SECRET e liga FORCE_HTTPS por padrão', () => {
     expect(() => loadConfig({ NODE_ENV: 'production' })).toThrow(/JWT_SECRET/);
-    const c = loadConfig({ NODE_ENV: 'production', JWT_SECRET: 'x'.repeat(40) });
+    const c = loadConfig({ NODE_ENV: 'production', JWT_SECRET: 'x'.repeat(40), PUBLIC_SHARE_URL: 'https://mobilidade.app/s' });
     expect(c.FORCE_HTTPS).toBe(true);
   });
 

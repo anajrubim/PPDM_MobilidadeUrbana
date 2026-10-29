@@ -15,7 +15,7 @@ let apiRunning = false;
 if (android) {
   try {
     const res = await fetch('http://localhost:3333/api/v1/health', { signal: AbortSignal.timeout(2000) });
-    apiRunning = (await res.json())?.data?.app === 'mobilidade-urbana-sprint-01';
+    apiRunning = (await res.json())?.data?.app === 'mobilidade-urbana-sprint-02';
   } catch {
     /* nada na porta 3333 */
   }

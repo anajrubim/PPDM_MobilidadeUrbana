@@ -1,6 +1,6 @@
 import { router } from 'expo-router';
 import { Pressable, View } from 'react-native';
-import { SERVICE_LABEL } from '../lib/format';
+import { ratingLabel, SERVICE_LABEL } from '../lib/format';
 import { theme as t } from '../lib/theme';
 import type { LineSummary } from '../lib/types';
 import { Icon } from './Icon';
@@ -26,8 +26,11 @@ export function LineCard({ line, onToggleFavorite }: { line: LineSummary; onTogg
             <T v="small">
               {line.stopsCount} paradas · a cada {line.headwayMin} min · {line.firstDeparture}–{line.lastDeparture}
             </T>
-            {(line.serviceType !== 'normal' || !line.operating) && (
+            {(line.serviceType !== 'normal' || !line.operating || line.rating?.count > 0) && (
               <View style={{ flexDirection: 'row', gap: 6, marginTop: 4, flexWrap: 'wrap' }}>
+                {line.rating?.count > 0 && line.rating.average != null && (
+                  <Pill label={`★ ${ratingLabel(line.rating.average)} (${line.rating.count})`} tone="amber" />
+                )}
                 {line.serviceType !== 'normal' && <Pill label={SERVICE_LABEL[line.serviceType]} tone="purple" />}
                 {!line.operating && <Pill label="Fora de operação" tone="red" />}
               </View>

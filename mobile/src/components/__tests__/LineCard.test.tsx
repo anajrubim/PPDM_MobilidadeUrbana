@@ -21,6 +21,7 @@ const line: LineSummary = {
   stopsCount: 4,
   operating: true,
   isFavorite: false,
+  rating: { average: 4.2, count: 12 },
 };
 
 describe('LineCard (US05/US11)', () => {

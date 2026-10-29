@@ -1,6 +1,7 @@
-# Mobilidade Urbana — Sprint 1
+# Mobilidade Urbana — Sprint 2
 # Desenvolvimento: `npm run db:up` (só o PostgreSQL, porta 5434 do computador).
-# Produção/homologação: `docker compose --profile prod up -d --build` (PostgreSQL + API com HTTPS).
+# Produção/homologação: `docker compose --profile prod up -d --build` (PostgreSQL + API com HTTPS + backups a cada 24 h).
+# Só os backups (ex.: em desenvolvimento): `docker compose --profile backup up -d backup`.
 services:
   db:
     image: postgres:16-alpine
@@ -35,6 +36,11 @@ services:
       # obrigatório em produção (32+ caracteres, no .env da raiz): a API recusa subir sem ele
       JWT_SECRET: ${JWT_SECRET:-}
       PUBLIC_APP_URL: ${PUBLIC_APP_URL:-mobilidade://reset-password}
+      # US29 — endereço público dos links de compartilhamento de localização (obrigatório em produção)
+      PUBLIC_SHARE_URL: ${PUBLIC_SHARE_URL:-https://localhost/s}
+      # US17 — push remoto: none (o app busca as notificações) ou expo (com credenciais FCM no projeto Expo)
+      PUSH_PROVIDER: ${PUSH_PROVIDER:-none}
+      EXPO_ACCESS_TOKEN: ${EXPO_ACCESS_TOKEN:-}
       SMTP_URL: ${SMTP_URL:-}
       CORS_ORIGINS: ${CORS_ORIGINS:-*}
       # US13 — HTTPS no próprio Node: certificado montado em /app/certs (use o seu, ex.: Let's Encrypt)
@@ -50,6 +56,28 @@ services:
       - "${HTTPS_PUBLIC_PORT:-443}:3443"
     volumes:
       - ${TLS_DIR:-./backend/certs}:/app/certs:ro
+
+  # US30 — backup completo do banco a cada 24 h, com verificação e retenção (infra/backup/backup.sh).
+  # BACKUP_DIR deve apontar para o servidor secundário (pasta de rede montada: NFS/SMB) — ver docs/BACKUP.md.
+  backup:
+    profiles: ["prod", "backup"]
+    image: postgres:16-alpine
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      PGHOST: db
+      PGUSER: dmr
+      PGPASSWORD: ${POSTGRES_PASSWORD:-dmr}
+      PGDATABASE: dmr
+      BACKUP_INTERVAL_H: ${BACKUP_INTERVAL_H:-24}
+      BACKUP_KEEP_DAYS: ${BACKUP_KEEP_DAYS:-7}
+      BACKUP_POST_CMD: ${BACKUP_POST_CMD:-}
+    entrypoint: ["sh", "/backup.sh"]
+    volumes:
+      - ./infra/backup/backup.sh:/backup.sh:ro
+      - ${BACKUP_DIR:-./backups}:/backups
 
 volumes:
   pgdata:

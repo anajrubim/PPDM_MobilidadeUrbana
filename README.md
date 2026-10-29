@@ -1,17 +1,19 @@
-# Mobilidade Urbana — Sprint 1
+# Mobilidade Urbana — Sprint 2
 
-Versão inicial do aplicativo de transporte público, com **tudo o que foi planejado para a Sprint 1** (US01 a US14,
-48 pontos): cadastro e login, recuperação de senha por e-mail, edição de perfil, lista e busca de linhas, trajeto no
-mapa, pontos de parada com horários previstos, localização atual, favoritos e dashboard — sobre uma API Node.js com
-HTTPS e senhas em hash, versionada em Git e com pipeline de build/deploy.
+App de transporte público com **tudo da Sprint 1** (US01–US14: contas, linhas, paradas, mapa, favoritos, dashboard,
+API segura, Git e pipeline) **e tudo da Sprint 2** (US15–US31, 65 pontos): planejar viagem com baldeação e tempo
+estimado, ônibus em tempo real, notificações de atrasos e de itinerário, alertas de proximidade, histórico de viagens
+e de notificações, avaliações e denúncias, compartilhamento de localização, uso sem internet com cache do mapa,
+backups automáticos e compatibilidade Android. Entrega e rastreabilidade: [docs/SPRINT-02.md](docs/SPRINT-02.md).
 
 | Pasta | O que é | Tecnologia |
 |---|---|---|
 | `backend/` | API REST | Node.js 22, TypeScript, Express 5, PostgreSQL 16 |
 | `mobile/` | App: **Android nativo** (`mobile/android/`, abre no Android Studio), Expo Go e navegador | React Native 0.86, Expo SDK 57, Expo Router, Leaflet + OpenStreetMap |
 | `e2e/` | Testes ponta a ponta e gravação do vídeo | Playwright |
-| `docs/` | [**Guia do projeto**](docs/GUIA-DO-PROJETO.md) (front, back, arquitetura, decisões), [roteiro de apresentação](docs/ROTEIRO-APRESENTACAO.md), [entrega da sprint](docs/SPRINT-01.md), [API](docs/API.md), [arquitetura](docs/ARQUITETURA.md), [prints](docs/prints/) | — |
-| `video/` | `tour-sprint-01.mp4`: o app rodando, passando por todas as user stories (gravado no Windows) | MP4 (fora do Git) |
+| `docs/` | [**Guia do projeto**](docs/GUIA-DO-PROJETO.md), [roteiro de apresentação](docs/ROTEIRO-APRESENTACAO.md), entregas [Sprint 1](docs/SPRINT-01.md) e [**Sprint 2**](docs/SPRINT-02.md), [API](docs/API.md), [arquitetura](docs/ARQUITETURA.md), [ADRs](docs/adr/), [notificações](docs/NOTIFICACOES.md), [backups](docs/BACKUP.md), [prints](docs/prints/) | — |
+| `infra/` | Banco (`db/`) e backups automáticos (`backup/`, US30) | Docker, pg_dump |
+| `e2e/video/out/` | `tour-sprint-02.mp4`: o app rodando pelas histórias da Sprint 2 (`npm run video`) | MP4 (fora do Git) |
 | `.github/workflows/` | Pipeline CI/CD (US14) | GitHub Actions |
 
 ---
@@ -39,7 +41,11 @@ Os dois fazem a mesma coisa que `npm start`: instalam as dependências (só na p
 Docker, criam os dados de demonstração e abrem a API e o app. Quando aparecer `Waiting on http://localhost:8081`,
 abra **http://localhost:8081** no navegador.
 
-**Conta de demonstração:** `marina@email.com` / `Senha@123` (já tem favoritas e viagens). Ou crie a sua.
+**Conta de demonstração:** `marina@email.com` / `Senha@123` (favoritas, viagens, alerta de proximidade e uma viagem
+planejada; a linha 232 tem um aviso de obra ativo). Outros passageiros do seed (avaliações e denúncias): `pedro@`,
+`carla@` e `joao@email.com`, mesma senha. Ou crie a sua.
+
+**Simular atraso/desvio (notificações, US17):** com a API rodando, abra **http://localhost:3333/dev/simular**.
 
 Para parar: **Ctrl+C** no terminal. O banco continua no Docker (pare com `npm run db:down`).
 
@@ -62,6 +68,7 @@ npm run dev       # sobe a API e o app no navegador
 | http://localhost:3333/api/v1/health | API (HTTP) |
 | https://localhost:3443/api/v1/health | API em **HTTPS** (certificado local: o navegador avisa que não é confiável — normal em desenvolvimento) |
 | http://localhost:3333/dev/emails | **caixa de e-mails de teste** — o link de "Esqueci minha senha" chega aqui (só abre no próprio computador) |
+| http://localhost:3333/dev/simular | **simular atraso / desvio / suspensão** numa linha e disparar as notificações (só no próprio computador) |
 
 Também dá para subir cada parte num terminal separado: `npm run dev:api` e `npm run web`.
 
@@ -84,7 +91,8 @@ Detalhes, opções e problemas comuns: [docs/ANDROID.md](docs/ANDROID.md).
 
 **APK pronto no emulador, de uma vez** — **Windows:** dois cliques em **`ANDROID-WINDOWS.bat`** ·
 **Linux:** `./android-linux.sh` · ou `npm run android`. Sobe banco + API, compila o APK
-(5 a 20 min na primeira vez), liga o emulador, instala e abre o app. O APK fica em `apk/mobilidade-urbana-sprint01.apk`.
+(5 a 20 min na primeira vez), liga o emulador, instala e abre o app. O APK fica em `apk/mobilidade-urbana-sprint02.apk`.
+Requer **Android 7.0 ou mais novo** (limite do React Native 0.86 — [ADR-001](docs/adr/ADR-001-android-minimo.md)).
 
 **Pelo botão Run ▶ do Android Studio (debug):**
 
@@ -100,7 +108,7 @@ No emulador o app usa a API em `http://10.0.2.2:3333` (o "localhost" do PC visto
 
 ```bash
 npm run check          # lint + tipos + testes da API e do app (o mesmo que o CI roda)
-npm test               # 98 testes da API (PostgreSQL real, banco dmr_test) + 30 do app
+npm test               # 162 testes da API (PostgreSQL real, banco dmr_test) + 52 do app
 npm run test:backend -- --coverage
 ```
 
@@ -108,15 +116,15 @@ npm run test:backend -- --coverage
 
 ```bash
 npm run setup -- --e2e     # uma vez: instala o Playwright e o Chromium
-npm run test:e2e           # 25 cenários: US01–US13 + robustez (tentativas de quebrar o app)
+npm run test:e2e           # 33 cenários: US01–US13, robustez e as histórias da Sprint 2
 ```
 
 **Verificação completa de uma vez** (instala, sobe o banco, lint/tipos/testes, build, sobe API e app, E2E, vídeo e
 a imagem Docker de produção da API com HTTPS obrigatório;
 resultado em `verificacao.log`): `npm run verify -- --video` · no Windows, dois cliques em **`VERIFICAR-WINDOWS.bat`**.
 
-**Gravar o vídeo do app** (mesmos pré-requisitos): `npm run video` → `e2e/video/out/tour-sprint-01.webm`
-(e `.mp4` se houver ffmpeg). Para usar o Chrome instalado em vez do Chromium do Playwright:
+**Gravar o vídeo do app** (mesmos pré-requisitos): `npm run video` → `e2e/video/out/tour-sprint-02.webm`
+(e `.mp4` se houver ffmpeg) e os prints em `docs/prints/sprint2/`. Para usar o Chrome instalado em vez do Chromium do Playwright:
 PowerShell `$env:PW_CHANNEL="chrome"; npm run video` · Linux `PW_CHANNEL=chrome npm run video`.
 
 ---
@@ -138,6 +146,7 @@ PowerShell `$env:PW_CHANNEL="chrome"; npm run video` · Linux `PW_CHANNEL=chrome
 | `npm run build` | compila a API (`backend/dist`) e exporta o app web (`mobile/dist`) |
 | `npm run video` | grava o tour do app em vídeo |
 | `npm run verify` | verificação completa com log (`-- --video` também grava o vídeo) |
+| `npm run backup` / `backup:list` / `restore -- <arquivo> --sim` | backup do banco agora, listar, restaurar (US30 — [docs/BACKUP.md](docs/BACKUP.md)) |
 
 ---
 
@@ -175,18 +184,21 @@ PowerShell `$env:PW_CHANNEL="chrome"; npm run video` · Linux `PW_CHANNEL=chrome
 ## 8. Produção (US13/US14)
 
 - `docker compose --profile prod up -d --build` sobe PostgreSQL + API com **HTTPS obrigatório**
-  (`FORCE_HTTPS=true`). Antes, crie um `.env` na raiz com `JWT_SECRET` (32+ caracteres), `POSTGRES_PASSWORD`,
-  `SMTP_URL` e aponte `TLS_DIR`/`TLS_CERT`/`TLS_KEY` para o certificado do domínio.
+  (`FORCE_HTTPS=true`) + **backups a cada 24 h** (serviço `backup`, US30). Antes, crie um `.env` na raiz com
+  `JWT_SECRET` (32+ caracteres), `POSTGRES_PASSWORD`, `SMTP_URL`, `PUBLIC_SHARE_URL` (endereço público dos links
+  de compartilhamento, ex.: `https://seu-dominio/s`), `BACKUP_DIR` (pasta do servidor secundário) e aponte
+  `TLS_DIR`/`TLS_CERT`/`TLS_KEY` para o certificado do domínio. Push remoto: `PUSH_PROVIDER=expo` ([docs/NOTIFICACOES.md](docs/NOTIFICACOES.md)).
 - **Pipeline** (`.github/workflows/ci.yml`): a cada push/PR roda lint, tipos, testes (com PostgreSQL), build e E2E;
   na `main` ou numa tag `v*` publica a imagem da API no GitHub Container Registry e, se os segredos
   `DEPLOY_HOST`, `DEPLOY_USER` e `DEPLOY_SSH_KEY` estiverem configurados, atualiza o servidor por SSH.
-- **Git:** histórico por funcionalidade e tag `v0.1.0-sprint1`. Para publicar:
+- **Git:** histórico por funcionalidade e tag `v0.2.0-sprint2`. Para publicar:
   `git remote add origin <url-do-repositório>` e `git push -u origin main --tags`.
 
 ---
 
-## 9. O que ficou para as próximas sprints
+## 9. O que ficou para a Sprint 3
 
-Sprint 2: planejamento com baldeação, ônibus em tempo real, notificações, histórico completo de viagens,
-avaliações e denúncias, modo offline. Sprint 3: painel administrativo, preferências (tema, unidade, zona),
-QR Code, busca por voz, 2FA. Detalhes da entrega: [docs/SPRINT-01.md](docs/SPRINT-01.md).
+Painel administrativo (cadastro/edição de linhas, importação CSV, relatórios, comunicados, manutenções — os avisos
+de serviço da Sprint 2 já são a base deles), preferências (tema escuro, unidade, zona tarifária, tipo de serviço,
+economia de dados, provedor de mapa), QR Code, busca por voz, 2FA. Ligar o push remoto depende só do projeto
+Firebase ([docs/NOTIFICACOES.md](docs/NOTIFICACOES.md)).

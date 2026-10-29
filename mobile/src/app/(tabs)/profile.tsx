@@ -55,6 +55,7 @@ export default function Profile() {
           {[
             { v: dash.data?.trips.total ?? 0, l: 'viagens' },
             { v: dash.data?.favorites.length ?? 0, l: 'favoritas' },
+            { v: dash.data?.unreadNotifications ?? 0, l: 'não lidas' },
           ].map((s) => (
             <View
               key={s.l}
@@ -71,6 +72,24 @@ export default function Profile() {
         </View>
       </Hero>
       <View style={{ padding: 20, gap: 6 }}>
+        <SectionTitle>Viagens e avisos</SectionTitle>
+        <Card style={{ paddingVertical: 4 }}>
+          <Row icon="history" title="Histórico de viagens" subtitle="Planejadas e realizadas" onPress={() => router.push('/history')} />
+          <Divider />
+          <Row
+            icon="bell"
+            title="Notificações"
+            subtitle={dash.data?.unreadNotifications ? `${dash.data.unreadNotifications} não lidas` : 'Atrasos, itinerário e alertas'}
+            onPress={() => router.push('/notifications')}
+          />
+          <Divider />
+          <Row icon="target" title="Alertas de proximidade" subtitle="Aviso quando o ônibus estiver chegando" onPress={() => router.push('/alerts')} />
+          <Divider />
+          <Row icon="share" title="Compartilhar localização" subtitle="Envie sua posição ou rota para um contato" onPress={() => router.push('/share')} />
+          <Divider />
+          <Row icon="wifioff" title="Usar sem internet" subtitle="Baixar linhas e horários · mapa salvo" onPress={() => router.push('/offline')} />
+        </Card>
+
         <SectionTitle>Conta</SectionTitle>
         <Card style={{ paddingVertical: 4 }}>
           <Row
@@ -89,7 +108,7 @@ export default function Profile() {
         <Card style={{ paddingVertical: 4 }}>
           <Row icon="shield" title="Conexão" subtitle={`API: ${API_URL}`} />
           <Divider />
-          <Row icon="file" title="Versão" subtitle="0.1.0 — Sprint 1" />
+          <Row icon="file" title="Versão" subtitle="0.2.0 — Sprint 2" />
         </Card>
 
         <Pressable accessibilityRole="button" onPress={logout} style={{ padding: 18, alignItems: 'center' }}>

@@ -18,7 +18,8 @@ export default function MapTab() {
   const [lineId, setLineId] = useState<number | null>(null);
 
   const nearby = useApi<StopSummary[]>(
-    position ? `/stops?sort=distance&lat=${position.latitude.toFixed(5)}&lng=${position.longitude.toFixed(5)}&limit=6` : null,
+    position ? `/stops?sort=distance&lat=${position.latitude.toFixed(3)}&lng=${position.longitude.toFixed(3)}&limit=6` : null,
+    { keepPrevious: true },
   );
   const favorites = useApi<LineSummary[]>('/me/favorites');
   const line = useApi<LineDetail>(lineId ? `/lines/${lineId}` : null);

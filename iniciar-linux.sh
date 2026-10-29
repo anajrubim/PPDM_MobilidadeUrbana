@@ -1,5 +1,5 @@
 #!/usr/bin/env sh
-# Prepara e inicia o Mobilidade Urbana (Sprint 1) no Linux/macOS. Requer Node.js 22 e Docker.
+# Prepara e inicia o Mobilidade Urbana (Sprint 2) no Linux/macOS. Requer Node.js 22 e Docker.
 # Uso: ./iniciar-linux.sh            (app no navegador)
 #      ./iniciar-linux.sh --mobile   (QR Code para o Expo Go no celular)
 cd "$(dirname "$0")" || exit 1

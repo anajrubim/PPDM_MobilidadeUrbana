@@ -36,7 +36,7 @@ describe('US03 — envio de e-mail', () => {
 
   it('a caixa de desenvolvimento não existe em produção', async () => {
     const mailer = createMailer('', 'x@y.z', pino({ level: 'silent' }));
-    const config = loadConfig({ NODE_ENV: 'production', JWT_SECRET: 'x'.repeat(40), FORCE_HTTPS: 'false' });
+    const config = loadConfig({ NODE_ENV: 'production', JWT_SECRET: 'x'.repeat(40), PUBLIC_SHARE_URL: 'https://mobilidade.app/s', FORCE_HTTPS: 'false' });
     const app = createApp({ ...ctx.deps, config, mailer });
     await request(app).get('/dev/emails').expect(404);
   });

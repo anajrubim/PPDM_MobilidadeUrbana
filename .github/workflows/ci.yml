@@ -1,4 +1,4 @@
-# US14 — pipeline de build e deploy.
+# US14 — pipeline de build e deploy (Sprint 2: + backup US30 e compatibilidade Android US31 nos testes do app).
 # Todo push/PR: lint, tipos, testes (API com PostgreSQL real + app), build da API e do app web, testes E2E.
 # Push na main ou tag v*: publica a imagem Docker da API no GitHub Container Registry e o app web como artefato;
 # se os segredos do servidor existirem, faz o deploy por SSH.
@@ -52,6 +52,21 @@ jobs:
       - run: npm run typecheck
       - run: npm run test:coverage
       - run: npm run build
+      # US30 — o script de backup gera um arquivo válido (pg_restore --list) e aplica a retenção
+      - name: Backup do banco (US30)
+        working-directory: .
+        env:
+          PGHOST: localhost
+          PGPORT: '5434'
+          PGUSER: dmr
+          PGPASSWORD: dmr
+          PGDATABASE: dmr_test
+          BACKUP_DIR: ${{ runner.temp }}/backups
+          BACKUP_ONCE: '1'
+        run: |
+          sh infra/backup/backup.sh
+          ls -l "$BACKUP_DIR"
+          pg_restore --list "$BACKUP_DIR"/dmr_test-*.dump > /dev/null
       - uses: actions/upload-artifact@v4
         with:
           name: api-dist
@@ -138,7 +153,7 @@ jobs:
     name: Publica imagem da API (GHCR)
     if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v'))
     needs: [backend, mobile, e2e]
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     permissions:
       contents: read
       packages: write
@@ -165,7 +180,7 @@ jobs:
   deploy:
     name: Deploy no servidor
     needs: publish
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     environment: producao
     env:
       HAS_SERVER: ${{ secrets.DEPLOY_HOST != '' }}

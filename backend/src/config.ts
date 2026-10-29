@@ -32,6 +32,16 @@ const schema = z.object({
    * (burlando o limite de tentativas) ou finge ter vindo por HTTPS.
    */
   TRUST_PROXY: z.coerce.number().int().min(0).max(10).default(0),
+  /**
+   * US17 — envio de push: "none" (o app busca as notificações na API e mostra no aparelho)
+   * ou "expo" (Expo Push Service; no Android exige as credenciais FCM no projeto Expo).
+   */
+  PUSH_PROVIDER: z.enum(['none', 'expo']).default('none'),
+  EXPO_ACCESS_TOKEN: z.string().optional().default(''),
+  /** US29 — endereço público dos links de compartilhamento (ex.: https://mobilidade.app/s). Vazio = o host da requisição. */
+  PUBLIC_SHARE_URL: z.string().optional().default(''),
+  /** US17/US18 — a cada quantos segundos o monitor procura atrasos e ônibus chegando (0 = desligado). */
+  MONITOR_INTERVAL_S: z.coerce.number().int().min(0).max(3600).default(30),
 });
 
 export type Config = z.infer<typeof schema>;
@@ -45,6 +55,10 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     FORCE_HTTPS: env.FORCE_HTTPS ?? (isProd ? 'true' : undefined),
   };
   const parsed = schema.safeParse(withDefaults);
+  if (parsed.success && isProd && !parsed.data.PUBLIC_SHARE_URL) {
+    // Sem isso o link de compartilhamento usaria o cabeçalho Host da requisição (US29)
+    throw new Error('Configuração inválida: PUBLIC_SHARE_URL é obrigatório em produção (ex.: https://seu-dominio/s)');
+  }
   if (!parsed.success) {
     const msg = parsed.error.issues.map((i) => `${i.path.join('.')}: ${i.message}`).join('; ');
     throw new Error(`Configuração inválida: ${msg}`);
